@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Mapa de Comercios - Tandil</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.9.2/proj4.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; }
+        #map { width: 100%; height: 100vh; }
+        .leyenda {
+            position: absolute; bottom: 30px; right: 10px; z-index: 1000;
+            background: white; padding: 10px; border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-family: sans-serif; font-size: 12px;
+        }
+        .leyenda-item { margin-bottom: 5px; display: flex; align-items: center; }
+        .color-box { width: 15px; height: 15px; border-radius: 50%; display: inline-block; margin-right: 8px; border: 1px solid #333; }
+    </style>
+</head>
+<body>
+    <div class="leyenda">
+        <b>Rubros Principales</b>
+        <div class="leyenda-item"><span class="color-box" style="background: #e74c3c;"></span>Alimentos y Bebidas</div>
+        <div class="leyenda-item"><span class="color-box" style="background: #3498db;"></span>Venta Al Por Menor</div>
+        <div class="leyenda-item"><span class="color-box" style="background: #2ecc71;"></span>Servicios (Varios)</div>
+        <div class="leyenda-item"><span class="color-box" style="background: #f1c40f;"></span>Fabricación/Reparación</div>
+        <div class="leyenda-item"><span class="color-box" style="background: #9b59b6;"></span>Otros</div>
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        proj4.defs("EPSG:5347", "+proj=tmerc +lat_0=-90 +lon_0=-60 +k=1 +x_0=5500000 +y_0=0 +ellps=WGS84 +units=m +no_defs");
+        const map = L.map('map', { preferCanvas: true }).setView([-37.32167, -59.13316], 13);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }).addTo(map);
+
+        function obtenerColor(rubro) {
+            if (!rubro) return "#9b59b6";
+            rubro = rubro.toLowerCase();
+            if (rubro.includes("alimentos") || rubro.includes("bebidas")) return "#e74c3c";
+            if (rubro.includes("por menor")) return "#3498db";
+            if (rubro.includes("servicio") || rubro.includes("profesional")) return "#2ecc71";
+            if (rubro.includes("fabricacion") || rubro.includes("reparacion")) return "#f1c40f";
+            return "#9b59b6";
+        }
+
+        // Carga el archivo desde la misma carpeta automáticamente
+        fetch('comercios_sept2023.json')
+            .then(response => response.json())
+            .then(geojsonData => {
+                const capaComercios = L.geoJSON(geojsonData, {
+                    coordsToLatLng: function (coords) {
+                        var wgs84 = proj4("EPSG:5347", "EPSG:4326", [coords[0], coords[1]]);
+                        return new L.LatLng(wgs84[1], wgs84[0]);
+                    },
+                    pointToLayer: function (feature, latlng) {
+                        return L.circleMarker(latlng, {
+                            radius: 5,
+                            fillColor: obtenerColor(feature.properties.rubro),
+                            color: "#000", weight: 1, opacity: 1, fillOpacity: 0.8
+                        });
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const nombre = feature.properties.nombre || 'Comercio sin nombre';
+                        const rubro = feature.properties.rubro || '';
+                        const domicilio = feature.properties.domicilio || '';
+                        layer.bindPopup(`<b>${nombre}</b><br>${rubro}<br><i>${domicilio}</i>`);
+                    }
+                }).addTo(map);
+                map.fitBounds(capaComercios.getBounds());
+            })
+            .catch(error => console.error('Error cargando el JSON:', error));
+    </script>
+</body>
+</html>
